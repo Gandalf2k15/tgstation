@@ -1953,3 +1953,12 @@
 		usr.hud_used.screentip_text.maptext = ""
 	else
 		usr.hud_used.screentip_text.maptext = MAPTEXT("<span style='text-align: center'><span style='font-size: 32px'><span style='color:[usr.client.prefs.screentip_color]: 32px'>[name]</span>")
+
+//Yes I'm aware this seems like shitcode, but out of all my options, this was by far the best.
+/// This proc is called when an atom that has a cell component runs out of charge.
+/atom/proc/component_cell_out_of_charge()
+	return
+
+/// This proc is called when an atom that has a cell component has it's cell removed. Returns component_cell_out_of_charge by default.
+/atom/proc/component_cell_removed()
+	return component_cell_out_of_charge()
