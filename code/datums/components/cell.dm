@@ -22,22 +22,30 @@ component_cell_out_of_charge/component_cell_removed proc using loc where necessa
 	/// Our reference to the inserted cell, which will be stored in the parent.
 	var/obj/item/stock_parts/cell/inserted_cell
 	/// The item reference to parent.
-	var/atom/equipment
+	var/obj/item/equipment
 	/// How much power do we use each process?
 	var/power_use_amount = POWER_CELL_USE_NORMAL
 	/// Are we using a robot's powersource?
 	var/inside_robot = FALSE
-	/// Does this component cell attachment start with a cell?
-	var/start_with_cell = TRUE
+	/// Callback interaction for when the cell is removed.
+	var/datum/callback/on_cell_removed = null
+	/// Callback interaction for when the cell runs out of charge.
+	var/datum/callback/cell_out_of_charge = null
+	///Can this cell be removed from the parent?
+	var/cell_can_be_removed = TRUE
 
-/datum/component/cell/Initialize(cell_override, cell_power_use)
-	. = ..()
+/datum/component/cell/Initialize(cell_power_use, on_cell_removed, cell_out_of_charge, start_with_cell = TRUE, cell_override, cell_can_be_removed = TRUE)
+	if(!isitem(parent)) //Currently only compatable with items.
+		return COMPONENT_INCOMPATIBLE
+
+	if(on_cell_removed)
+		src.on_cell_removed = on_cell_removed
+
+	if(cell_out_of_charge)
+		src.cell_out_of_charge = cell_out_of_charge
 
 	if(cell_power_use)
 		power_use_amount = cell_power_use
-
-	if(!isatom(parent)) //WE allow all atoms to use this, no discrimination here!
-		return COMPONENT_INCOMPATIBLE
 
 	equipment = parent //We'd like a simple reference to the atom this component is attached to instead of having to declare it every time we use it.
 
@@ -46,7 +54,7 @@ component_cell_out_of_charge/component_cell_removed proc using loc where necessa
 		var/mob/living/silicon/robot/robit = equipment.loc.loc //If this ever runtimes, we'll know about it and be able to refactor this.
 		inserted_cell = robit.cell
 		inside_robot = TRUE
-	else if(starts_with_cell)
+	else if(start_with_cell)
 		var/obj/item/stock_parts/cell/new_cell
 		if(cell_override)
 			new_cell = new cell_override()
@@ -55,90 +63,57 @@ component_cell_out_of_charge/component_cell_removed proc using loc where necessa
 		inserted_cell = new_cell
 		new_cell.forceMove(parent) //We use the parents location so things like EMP's can interact with the cell.
 
+	return ..()
 
 /datum/component/cell/RegisterWithParent()
 	//Component to Parent signal registries
-	RegisterSignal(parent, COMSIG_CELL_START_USE, .proc/start_processing_cell)
-	RegisterSignal(parent, COMSIG_CELL_STOP_USE, .proc/stop_processing_cell)
+	RegisterSignal(parent, COMSIG_ITEM_POWER_USE, .proc/simple_power_use)
 	RegisterSignal(parent, COMSIG_PARENT_ATTACKBY, .proc/insert_cell)
 	RegisterSignal(parent, COMSIG_CLICK_CTRL_SHIFT , .proc/remove_cell)
 	RegisterSignal(parent, COMSIG_PARENT_EXAMINE, .proc/examine_cell)
 
-	//Parent to Component signal registires
-	parent.RegisterSignal(src, COMSIG_CELL_OUT_OF_CHARGE, /atom.proc/component_cell_out_of_charge)
-	parent.RegisterSignal(src, COMSIG_CELL_REMOVED, /atom.proc/component_cell_removed)
-
 /datum/component/cell/UnregisterFromParent()
-	UnregisterSignal(parent, COMSIG_CELL_START_USE)
-	UnregisterSignal(parent, COMSIG_CELL_STOP_USE)
+	UnregisterSignal(parent, COMSIG_ITEM_POWER_USE)
 	UnregisterSignal(parent, COMSIG_PARENT_ATTACKBY)
 	UnregisterSignal(parent, COMSIG_CLICK_CTRL_SHIFT)
 	UnregisterSignal(parent, COMSIG_PARENT_EXAMINE)
 
-	parent.UnregisterSignal(src, COMSIG_CELL_OUT_OF_CHARGE)
-	parent.UnregisterSignal(src, COMSIG_CELL_REMOVED)
-
 /datum/component/cell/Destroy(force, silent)
+	if(on_cell_removed)
+		QDEL_NULL(on_cell_removed)
+	if(cell_out_of_charge)
+		QDEL_NULL(cell_out_of_charge)
 	if(inserted_cell)
 		if(!inside_robot) //We really don't want to be deleting the robot's cell.
-			qdel(inserted_cell)
+			QDEL_NULL(inserted_cell)
 		inserted_cell = null
 	return ..()
 
-/datum/component/cell/proc/simple_power_use(mob/user, use_amount, check_only = FALSE)
+/// This proc is the basic way of processing the cell, with included feedback. It will return a bitflag if it failed to use the power, or COMPONENT_POWER_SUCCESS if it succeeds.
+/// The user is sent the feedback, use_amount is an override, check_only will only return if it can use the cell and feedback relating to that.
+/datum/component/cell/proc/simple_power_use(use_amount, mob/user, check_only = FALSE)
+	SIGNAL_HANDLER
 	if(!use_amount)
 		use_amount = power_use_amount
 
 	if(!inserted_cell)
 		to_chat(user, "<span class='danger'>There is no cell inside [equipment]</span>")
-		return FALSE
+		return COMPONENT_NO_CELL
 
 	if(check_only)
 		if(inserted_cell.charge < use_amount)
-			to_chat(user, "<span class='danger'>The cell inside [equipment] does not have enough charge to perform this action!</span>")
-			return FALSE
+			if(user)
+				to_chat(user, "<span class='danger'>The cell inside [equipment] does not have enough charge to perform this action!</span>")
+			return COMPONENT_NO_CHARGE
 	else if(!inserted_cell.use(use_amount))
 		inserted_cell.update_appearance()  //Updates the attached cell sprite - Why does this not happen in cell.use?
-		to_chat(user, "<span class='danger'>The cell inside [equipment] does not have enough charge to perform this action!</span>")
-		return FALSE
-
-	inserted_cell.update_appearance()
-	return TRUE
-
-/// Signal friendly start processing proc. Contains checks to process. Returns false if it fails, and true if successfull.
-/datum/component/cell/proc/start_processing_cell()
-	SIGNAL_HANDLER
-
-	if(!inserted_cell)
-		SEND_SIGNAL(src, COMSIG_CELL_REMOVED)
-		return FALSE
-
-	if(inserted_cell.charge < power_use_amount)
-		SEND_SIGNAL(src, COMSIG_CELL_OUT_OF_CHARGE)
-		return FALSE
-
-	START_PROCESSING(SSobj, src)
-	return TRUE
-
-/// Signal friendly stop processing proc, used internally and externally.
-/datum/component/cell/proc/stop_processing_cell()
-	SIGNAL_HANDLER
-	STOP_PROCESSING(SSobj, src)
-
-/datum/component/cell/process(delta_time)
-	if(!inserted_cell.use(power_use_amount))
-		cell_out_of_charge() //Best to let the proc deal with the processing.
-		return
+		if(user)
+			to_chat(user, "<span class='danger'>The cell inside [equipment] does not have enough charge to perform this action!</span>")
+		return COMPONENT_NO_CHARGE
 
 	inserted_cell.update_appearance()
 
-/// Proc is used to handle the cell running out of charge, generally, this should only be called within the component.
-/datum/component/cell/proc/cell_out_of_charge()
-	SIGNAL_HANDLER
-	SEND_SIGNAL(src, COMSIG_CELL_OUT_OF_CHARGE)
-	inserted_cell.update_appearance()
-	stop_processing_cell()
-	equipment.visible_message("<span class='danger'>[equipment] makes a soft humming noise as it shuts off!</span>") //Automatic feedback is always good.
+	return COMPONENT_POWER_SUCCESS
 
 /datum/component/cell/proc/examine_cell(atom/A, mob/user, list/examine_list)
 	SIGNAL_HANDLER
@@ -152,12 +127,13 @@ component_cell_out_of_charge/component_cell_removed proc using loc where necessa
 
 /// Handling of cell removal.
 /datum/component/cell/proc/remove_cell(datum/source, mob/user)
-	SIGNAL_HANDLER
-
 	if(!equipment.can_interact(user))
 		return
 
 	if(inside_robot)
+		return
+
+	if(!cell_can_be_removed)
 		return
 
 	if(inserted_cell)
@@ -166,18 +142,12 @@ component_cell_out_of_charge/component_cell_removed proc using loc where necessa
 		inserted_cell.forceMove(get_turf(equipment))
 		INVOKE_ASYNC(user, /mob/living.proc/put_in_hands, inserted_cell)
 		inserted_cell = null
-		SEND_SIGNAL(src, COMSIG_CELL_REMOVED)
-		stop_processing_cell()
+		on_cell_removed.Invoke()
 	else
 		to_chat(user, "<span class='danger'>There is no cell inserted in [equipment]!</span>")
 
 /// Handling of cell insertion.
 /datum/component/cell/proc/insert_cell(datum/source, obj/item/inserting_item, mob/living/user, params)
-	SIGNAL_HANDLER
-
-	if(!equipment.can_interact(user))
-		return
-
 	if(inside_robot) //More robot shitcode, if we allowed them to remove the cell, it would cause the universe to implode.
 		return
 
@@ -192,4 +162,3 @@ component_cell_out_of_charge/component_cell_removed proc using loc where necessa
 	playsound(equipment, 'sound/weapons/magin.ogg', 40, TRUE)
 	inserted_cell = inserting_item
 	inserting_item.forceMove(parent)
-	SEND_SIGNAL(src, COMSIG_CELL_INSERTED)

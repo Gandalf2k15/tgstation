@@ -158,6 +158,9 @@ GLOBAL_VAR_INIT(embedpocalypse, FALSE) // if true, all items will be able to emb
 	///How fast does the tool work
 	var/toolspeed = 1
 
+	///How much power would this item use?
+	var/power_use_amount = POWER_CELL_USE_NORMAL
+
 	var/block_chance = 0
 	var/hit_reaction_chance = 0 //If you want to have something unrelated to blocking/armour piercing etc. Maybe not needed, but trying to think ahead/allow more freedom
 	///In tiles, how far this weapon can reach; 1 for adjacent, which is default
@@ -1151,3 +1154,8 @@ GLOBAL_VAR_INIT(embedpocalypse, FALSE) // if true, all items will be able to emb
 	if(ismob(loc))
 		var/mob/mob_loc = loc
 		mob_loc.regenerate_icons()
+
+/// Use the power of an attached component that posesses power handling, will return the signal bitflag.
+/obj/item/proc/item_use_power(mob/user, check_only = FALSE, use_amount)
+	SHOULD_CALL_PARENT(TRUE)
+	return SEND_SIGNAL(src, COMSIG_ITEM_POWER_USE, user, check_only, use_amount)

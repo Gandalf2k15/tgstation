@@ -1228,3 +1228,11 @@
 // Exosca signals
 /// Sent on exoscan failure/manual interruption: ()
 #define COMSIG_EXOSCAN_INTERRUPTED "exoscan_interrupted"
+
+// Power signals
+/// Sent when an obj/item calls item_use_power: (power_use_amount, mob/user, check_only)
+#define COMSIG_ITEM_POWER_USE "item_use_power"
+	#define NO_COMPONENT NONE
+	#define COMPONENT_POWER_SUCCESS (1<<0)
+	#define COMPONENT_NO_CELL  (1<<1)
+	#define COMPONENT_NO_CHARGE (1<<2)

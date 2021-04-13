@@ -18,32 +18,60 @@
 	light_power = 1
 	light_on = FALSE
 	var/on = FALSE
-
+	power_use_amount = POWER_CELL_USE_VERY_LOW
 
 /obj/item/flashlight/Initialize()
 	. = ..()
 	if(icon_state == "[initial(icon_state)]-on")
-		on = TRUE
-	update_brightness()
+		turn_on()
 
-/obj/item/flashlight/proc/update_brightness(mob/user)
+/obj/item/flashlight/ComponentInitialize()
+	. = ..()
+	AddComponent(/datum/component/cell, power_use_amount, CALLBACK(src, .proc/turn_off), CALLBACK(src, .proc/turn_off))
+
+/obj/item/flashlight/proc/update_brightness()
+	set_light_on(on)
+	if(light_system == STATIC_LIGHT)
+		update_light()
+	update_appearance()
+
+/obj/item/flashlight/attack_self(mob/user)
+	. = ..()
+	playsound(user, on ? 'sound/weapons/magin.ogg' : 'sound/weapons/magout.ogg', 40, TRUE)
+	if(on)
+		turn_off(user)
+		on = FALSE
+	else
+		if(!(item_use_power(user, TRUE, power_use_amount) & COMPONENT_POWER_SUCCESS))
+			return
+		on = TRUE
+		turn_on(user)
+
+/obj/item/flashlight/proc/turn_off()
+	update_brightness()
+	for(var/X in actions)
+		var/datum/action/A = X
+		A.UpdateButtonIcon()
+
+/obj/item/flashlight/proc/turn_on(mob/user)
+	START_PROCESSING(SSobj, src)
+	update_brightness()
+	for(var/X in actions)
+		var/datum/action/A = X
+		A.UpdateButtonIcon()
+
+/obj/item/flashlight/process(delta_time)
+	if(!on)
+		STOP_PROCESSING(SSobj, src)
+		return
+	item_use_power()
+
+/obj/item/flashlight/update_icon_state()
+	. = ..()
 	if(on)
 		icon_state = "[initial(icon_state)]-on"
 	else
 		icon_state = initial(icon_state)
-	set_light_on(on)
-	if(light_system == STATIC_LIGHT)
-		update_light()
-
-
-/obj/item/flashlight/attack_self(mob/user)
-	on = !on
-	playsound(user, on ? 'sound/weapons/magin.ogg' : 'sound/weapons/magout.ogg', 40, TRUE)
-	update_brightness(user)
-	for(var/X in actions)
-		var/datum/action/A = X
-		A.UpdateButtonIcon()
-	return 1
 
 /obj/item/flashlight/suicide_act(mob/living/carbon/human/user)
 	if (user.is_blind())
@@ -299,15 +327,10 @@
 /obj/item/flashlight/flare/ignition_effect(atom/A, mob/user)
 	. = fuel && on ? "<span class='notice'>[user] lights [A] with [src] like a real badass.</span>" : ""
 
-/obj/item/flashlight/flare/proc/turn_off()
-	on = FALSE
+/obj/item/flashlight/flare/turn_off()
+	. = ..()
 	force = initial(src.force)
 	damtype = initial(src.damtype)
-	if(ismob(loc))
-		var/mob/U = loc
-		update_brightness(U)
-	else
-		update_brightness(null)
 
 /obj/item/flashlight/flare/update_brightness(mob/user = null)
 	..()
@@ -482,8 +505,8 @@
 		STOP_PROCESSING(SSobj, src)
 		update_appearance()
 
-/obj/item/flashlight/glowstick/proc/turn_off()
-	on = FALSE
+/obj/item/flashlight/glowstick/turn_off()
+	. = ..()
 	update_appearance()
 
 /obj/item/flashlight/glowstick/update_appearance(updates=ALL)
