@@ -34,7 +34,7 @@ component_cell_out_of_charge/component_cell_removed proc using loc where necessa
 	///Can this cell be removed from the parent?
 	var/cell_can_be_removed = TRUE
 
-/datum/component/cell/Initialize(cell_power_use, on_cell_removed, cell_out_of_charge, start_with_cell = TRUE, cell_override, cell_can_be_removed = TRUE)
+/datum/component/cell/Initialize(_power_use_amount, on_cell_removed, cell_out_of_charge, start_with_cell = TRUE, cell_override, cell_can_be_removed = TRUE)
 	if(!isitem(parent)) //Currently only compatable with items.
 		return COMPONENT_INCOMPATIBLE
 
@@ -44,8 +44,8 @@ component_cell_out_of_charge/component_cell_removed proc using loc where necessa
 	if(cell_out_of_charge)
 		src.cell_out_of_charge = cell_out_of_charge
 
-	if(cell_power_use)
-		power_use_amount = cell_power_use
+	if(_power_use_amount)
+		power_use_amount = _power_use_amount
 
 	equipment = parent //We'd like a simple reference to the atom this component is attached to instead of having to declare it every time we use it.
 
@@ -148,6 +148,9 @@ component_cell_out_of_charge/component_cell_removed proc using loc where necessa
 
 /// Handling of cell insertion.
 /datum/component/cell/proc/insert_cell(datum/source, obj/item/inserting_item, mob/living/user, params)
+	if(!equipment.can_interact(user))
+		return
+
 	if(inside_robot) //More robot shitcode, if we allowed them to remove the cell, it would cause the universe to implode.
 		return
 

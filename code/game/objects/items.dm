@@ -1156,6 +1156,6 @@ GLOBAL_VAR_INIT(embedpocalypse, FALSE) // if true, all items will be able to emb
 		mob_loc.regenerate_icons()
 
 /// Use the power of an attached component that posesses power handling, will return the signal bitflag.
-/obj/item/proc/item_use_power(mob/user, check_only = FALSE, use_amount)
+/obj/item/proc/item_use_power(use_amount, mob/user, check_only = FALSE)
 	SHOULD_CALL_PARENT(TRUE)
-	return SEND_SIGNAL(src, COMSIG_ITEM_POWER_USE, user, check_only, use_amount)
+	return SEND_SIGNAL(src, COMSIG_ITEM_POWER_USE, use_amount, user, check_only)

@@ -37,15 +37,15 @@
 
 /obj/item/flashlight/attack_self(mob/user)
 	. = ..()
-	playsound(user, on ? 'sound/weapons/magin.ogg' : 'sound/weapons/magout.ogg', 40, TRUE)
 	if(on)
-		turn_off(user)
 		on = FALSE
+		turn_off(user)
 	else
-		if(!(item_use_power(user, TRUE, power_use_amount) & COMPONENT_POWER_SUCCESS))
+		if(!(item_use_power(power_use_amount, user, TRUE) & COMPONENT_POWER_SUCCESS))
 			return
 		on = TRUE
 		turn_on(user)
+	playsound(user, on ? 'sound/weapons/magin.ogg' : 'sound/weapons/magout.ogg', 40, TRUE)
 
 /obj/item/flashlight/proc/turn_off()
 	update_brightness()
