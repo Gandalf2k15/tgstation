@@ -1,0 +1,9 @@
+2021-07-01:
+  Fikou:
+  - bugfix: fixes singularity beacons
+  Watermelon914:
+  - expansion: Adds several list circuit components to manipulate lists.
+  - expansion: Adds the table datatype that can have queries performed on it with
+      components.
+  - expansion: Adds USB connections for the arrest console.
+  - bugfix: Fixed race conditions happening with circuits.
